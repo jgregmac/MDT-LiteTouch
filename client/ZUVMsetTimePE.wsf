@@ -1,0 +1,71 @@
+<job id="ZUVMsetTimePE">
+   <script language="VBScript" src="ZTIUtility.vbs"/>
+   <script language="VBScript">
+
+Option Explicit
+RunNewInstance
+
+'//—————————————————————————-
+'//  Global Constants
+'//—————————————————————————-
+
+'const DEPLOY_SERVER = "\\sysimg3.campus.ad.uvm.edu"
+
+'//—————————————————————————-
+'//  Main Class
+'//—————————————————————————-
+
+Class ZUVMsetTimePE
+
+    '//—————————————————————————-
+    '//  Global constant and variable declarations
+    '//—————————————————————————-
+
+    Dim iRetVal
+
+    '//—————————————————————————-
+    '//  Constructor to initialize needed global objects
+    '//—————————————————————————-
+
+    Private Sub Class_Initialize
+
+    End Sub
+    '//—————————————————————————-
+    '//  Main routine
+    '//—————————————————————————-
+
+    Function Main
+	
+		' setTimePE.vbs
+		' J. Greg Mackinnon, 2010-10-12
+		' Sets time from within a WinPE 3.0 environment.
+		' ASSUMES:  Local timezone is set correctly in the WinPE system registry.
+		' ASSUMES:  Time on the deployment server is set correctly.
+
+		' Declare objects and variants
+		Dim oExec
+		Dim sDPServ
+		
+		' Initiate variants
+		sDPServ = oEnvironment.Item("SMSDP")
+
+		' Procedure: Display current time:
+		oLogging.CreateEntry "setTime> " & "Current Time is: " & Date & " " & Time, LogTypeInfo
+		
+		' Procedure: Set local time against time on deployment server:
+		oLogging.CreateEntry "setTime> About to run command: " & "net.exe time \\" & sDPServ & " /set /y", LogTypeInfo
+		set oExec = oShell.Exec("net.exe time \\" & sDPServ & " /set /y")
+		Do While oExec.Status = 0
+			 WScript.Sleep 100
+		Loop
+		do while not oExec.StdOut.AtEndOfStream
+			oLogging.CreateEntry "setTime> " & oExec.StdOut.ReadLine, LogTypeInfo
+		loop
+		oLogging.CreateEntry "setTime> " & "Current Time is now: " & Date & " " & Time, LogTypeInfo
+
+	End Function
+
+End Class
+
+   </script>
+</job>

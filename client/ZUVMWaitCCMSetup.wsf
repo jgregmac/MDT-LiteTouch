@@ -1,0 +1,70 @@
+<job id="ZUVMWaitCCMSetup">
+   <script language="VBScript" src="ZTIUtility.vbs"/>
+   <script language="VBScript">
+
+Option Explicit
+RunNewInstance
+
+'//—————————————————————————-
+'//  Global Constants
+'//—————————————————————————-
+
+'//—————————————————————————-
+'//  Main Class
+'//—————————————————————————-
+
+Class ZUVMWaitCCMSetup
+
+    '//—————————————————————————-
+    '//  Global constant and variable declarations
+    '//—————————————————————————-
+
+    Dim iRetVal
+
+    '//—————————————————————————-
+    '//  Constructor to initialize needed global objects
+    '//—————————————————————————-
+
+    Private Sub Class_Initialize
+
+    End Sub
+    '//—————————————————————————-
+    '//  Main routine
+    '//—————————————————————————-
+
+    Function Main
+
+	' ZUVMWaitCCMSetup script
+	' J. Greg Mackinnon, 2011-07-12
+	' Actions: Pauses deployment while CCMSetup completes
+	' Requires: 
+	' Tested on: Windows 7.  Should work on Vista as well... NOT intended for XP systems.
+
+		Dim oProc
+		Dim bIsRunning
+		Dim iReturn
+		Dim sComputer, sProcess
+		
+		Main = Success
+		bIsRunning = true
+		sProcess = "ccmsetup.exe"
+
+		Do While bIsRunning
+			bIsRunning = false
+			for each oProc in objWMI.InstancesOf ("Win32_Process")
+				If oProc.Name = sProcess then
+					oLogging.CreateEntry "WaitCCMSetup> " & sProcess & " is running.  Sleeping for 5 seconds...", LogTypeInfo
+					bIsRunning = true
+					wscript.sleep 5000
+				End If
+			next
+		Loop
+		
+		oLogging.CreateEntry "WaitCCMSetup> " & sProcess & " is not running.  Exiting WaitCCMSetup.", LogTypeInfo
+			
+	End Function
+
+End Class
+
+   </script>
+</job>

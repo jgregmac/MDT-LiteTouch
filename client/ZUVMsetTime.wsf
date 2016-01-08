@@ -1,0 +1,132 @@
+<job id="ZUVMsetTime">
+   <script language="VBScript" src="ZTIUtility.vbs"/>
+   <script language="VBScript">
+
+Option Explicit
+RunNewInstance
+
+'//—————————————————————————-
+'//  Global Constants
+'//—————————————————————————-
+
+'//—————————————————————————-
+'//  Main Class
+'//—————————————————————————-
+
+Class ZUVMsetTime
+
+    '//—————————————————————————-
+    '//  Global constant and variable declarations
+    '//—————————————————————————-
+
+    Dim iRetVal
+
+    '//—————————————————————————-
+    '//  Constructor to initialize needed global objects
+    '//—————————————————————————-
+
+    Private Sub Class_Initialize
+
+    End Sub
+    '//—————————————————————————-
+    '//  Main routine
+    '//—————————————————————————-
+
+    Function Main
+
+	' SetTime.vbs script
+	' J. Greg Mackinnon, 2010-10-04
+	' Actions: Syncs local system clock to "ntp.pool.org" time using the NTP protocol.
+	'          Will change registry values for maximum time skew correction If necessary, Then revert to original values
+	'          ReSets the w32time service during execution, but NOT at the End of the script.  An manual restart is required to 
+	'            revert Domain-joined systems to defaults.
+	' Requires: w32tm.exe, net.exe.  Both should be present on all Vista/Win7 systems.
+	' Tested on: WinDows 7.  Should work on Vista as well... NOT intEnded for XP systems.
+
+		Dim oExec
+		Dim iPosRegVal, iNegRegVal
+		Dim strKeyPath, strPosValueName, strNegValueName
+
+		strKeyPath = "HKLM\SYSTEM\CurrentControlSet\services\W32Time\Config"
+		strPosValueName = "MaxPosPhaseCorrection"
+		strNegValueName = "MaxNegPhaseCorrection"
+
+		oLogging.CreateEntry "setTime> " &  "Current Time is: " & Date & " " & Time, LogTypeInfo
+
+		'This works, If you can understand the screwball interger value that gets returned.  
+		'Everything over hex 0x0fffffff is listed as a negative interger.
+		'0xffffffff returns -1.
+		iPosRegVal = oShell.RegRead(strKeyPath & "\" & strPosValueName)
+		iNegRegVal = oShell.RegRead(strKeyPath & "\" & strNegValueName)
+		oLogging.CreateEntry "setTime> " &  "strNegValueName value is: " & iNegRegVal, LogTypeInfo
+		oLogging.CreateEntry "setTime> " &  "StrPosValueName value is: " & iPosRegVal, LogTypeInfo
+
+		If iPosRegVal <> -1 Then
+			oLogging.CreateEntry "setTime> " &  "Maximum allowed clock skew correction is NOT large enough... Setting to maximum value."
+			'Setting the Max Phase Correction registry values to "-1" (or 0xffffffff in hex), 
+			'which will allow correction of local time by any amount.
+			oShell.RegWrite strKeyPath & "\" & strPosValueName, -1, "REG_DWORD"
+			oShell.RegWrite strKeyPath & "\" & strNegValueName, -1, "REG_DWORD"
+			oLogging.CreateEntry "setTime> " &  strPosValueName & " is now Set to: " & oShell.RegRead(strKeyPath & "\" & strPosValueName), LogTypeInfo
+			oLogging.CreateEntry "setTime> " &  strNegValueName & " is now Set to: " & oShell.RegRead(strKeyPath & "\" & strNegValueName), LogTypeInfo
+		Else
+			oLogging.CreateEntry "setTime> " &  "This system already already is configured to allow large clock skew corrections.", LogTypeInfo
+		End If 
+
+		oLogging.CreateEntry "setTime> " &  "Setting WinDows Time service Manual-sync NTP Server to ""pool.ntp.org""", LogTypeInfo
+		' Pool.ntp.org is a collection of Internet NTP time servers.  
+		' It is the default time source for stand-alone RedHat installs,
+		' and apparently it is a but more reliable than "time.winDows.com"
+		Set oExec = oShell.Exec("w32tm.exe /config /manualpeerlist:pool.ntp.org /update")
+		Do While oExec.Status = 0
+			 WScript.Sleep 100
+		Loop
+		Do While NOT oExec.StdOut.AtEndOfStream
+			oLogging.CreateEntry "setTime> " &  oExec.StdOut.ReadLine, LogTypeInfo
+		Loop
+
+		'Stopping the w32time service.  
+		'Necessary because changes to the w32time service will NOT take effect until service restart.
+		Set oExec = oShell.Exec("net.exe stop w32time")
+		Do While oExec.Status = 0
+			 WScript.Sleep 100
+		Loop
+		Do While NOT oExec.StdOut.AtEndOfStream
+			oLogging.CreateEntry "setTime> " &  oExec.StdOut.ReadLine, LogTypeInfo
+		Loop
+
+		'Starting the w32time service
+		Set oExec = oShell.Exec("net start w32time")
+		Do While oExec.Status = 0
+			 WScript.Sleep 100
+		Loop
+		Do While NOT oExec.StdOut.AtEndOfStream
+			oLogging.CreateEntry "setTime> " &  oExec.StdOut.ReadLine, LogTypeInfo
+		Loop
+
+		'Forcing a time service resync
+		'Time would resync on its own soon enough, but we are impatient and want to see results immediately.
+		Set oExec = oShell.Exec("w32tm.exe /resync")
+		Do While oExec.Status = 0
+			 WScript.Sleep 100
+		Loop
+		Do While NOT oExec.StdOut.AtEndOfStream
+			oLogging.CreateEntry "setTime> " &  oExec.StdOut.ReadLine, LogTypeInfo
+		Loop
+
+		oLogging.CreateEntry "setTime> " &  "Current Time is: " & Date & " " & Time, LogTypeInfo
+
+		If iPosRegVal <> -1 Then
+			oLogging.CreateEntry "setTime> " &  "ReSetting registry maximum allowed clock skew correction Settings to their original values...", LogTypeInfo
+			oShell.RegWrite strKeyPath & "\" & strPosValueName, iPosRegVal, "REG_DWORD"
+			oShell.RegWrite strKeyPath & "\" & strNegValueName, iNegRegVal, "REG_DWORD"
+			oLogging.CreateEntry "setTime> " &  strPosValueName & " is now Set to: " & oShell.RegRead(strKeyPath & "\" & strPosValueName), LogTypeInfo
+			oLogging.CreateEntry "setTime> " &  strNegValueName & " is now Set to: " & oShell.RegRead(strKeyPath & "\" & strNegValueName), LogTypeInfo
+		End If
+		
+	End Function
+
+End Class
+
+   </script>
+</job>

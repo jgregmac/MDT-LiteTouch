@@ -1,0 +1,178 @@
+<job id="ZUVMCheckModel">
+<script language="VBScript" src="ZTIUtility.vbs"/>
+<script language="VBScript">
+
+Option Explicit
+RunNewInstance
+
+'//--------------------------------------------------------
+'// Main Class
+'//--------------------------------------------------------
+Class ZUVMCheckModel
+	
+	'//—————————————————————————-
+	'//  Constructor to initialize needed global objects
+	'//—————————————————————————-
+	Private Sub Class_Initialize
+	End Sub
+	
+	'//--------------------------------------------------------
+	'// Main routine
+	'//--------------------------------------------------------
+
+	Function Main()
+	' //*******************************************************
+	' //
+	' // File: ZTIUVMCheckModel.wsf
+	' //
+	' // Purpose: Checks the model of this system against
+	' //          a list of known machine models.  Returns
+	' //          TRUE if a matching model is detected.
+	' //
+	' // Usage: cscript ZUVMCheckModel.wsf /Model:<Model> [/debug:true]
+	' //
+	' //*******************************************************
+	
+	'Use the following lines for debugging only.
+	'oEnvironment.Item("TargetOS") = "Win8"
+	'oEnvironment.item("DeployRoot") = "c:\local\mdt"
+	'oEnvironment.Item("Model") = "Venue 11 Pro 7130"
+	'End debug Params
+
+	  Dim aModels()          'Array of models taken from DriverGroups.xml
+	  Dim bOldDrivers        'Boolean indicating drivers present for an older OS version
+	  Dim i                  'Generic integer for looping
+	  Dim j                  'Generic integer for looping
+	  Dim iRetVal            'Return code variable
+	  Dim iMaxOS             'Integer representing the highest matching OS driver store
+	  Dim oRegEx
+	  Dim oMatch
+	  Dim match
+	  Dim oXMLDoc            'XML Document Object, for reading DriverGroups.xml
+	  Dim Root,NodeList,Elem 'Objects in support of oXMLdoc
+	  Dim sDGPath            'Path to DriverGroups.xml file
+	  Dim sInitModel         'String representing the initial value of
+	                         '   oEnvironment.Item("Model")
+	  Dim sItem	             'Item in aModels array.
+	  Dim sMaxOS             'OS Name of highest matching OS driver store
+	  Dim sOSFound           'OS Name for a given matching driver set.
+	  
+	  oLogging.CreateEntry "Begin ZUVMCheckModel...", LogTypeInfo
+	  
+	  'Set the default values:
+	  oEnvironment.Item("SupportedModel") = "NO"
+	  iMaxOS = CInt(Right(oEnvironment.Item("TargetOS"),1))
+	  'wscript.echo "Default value for iMaxOS = " & iMaxOS
+	  bOldDrivers = false
+	  sInitModel = oEnvironment.Item("Model")
+	  'wscript.echo "sInitModel value = " & sInitModel
+	  
+	  Set oRegEx = New RegExp
+	  oRegEx.Global = True
+	  oRegEx.IgnoreCase = True
+	  
+	  'Modify the detected model name to handle known variations:
+	  oRegEx.pattern = "Latitude"
+	  if oRegEx.test(sInitModel) then
+		oLogging.CreateEntry "Model is a Latitude.  Cleaning up the model name...", LogTypeInfo
+		oRegEx.pattern = " "
+		set oMatch = oRegEx.Execute(sInitModel)
+		'wscript.echo "oMatch Count is: " & oMatch.count
+		if oMatch.Count > 1 then
+			i = oMatch.item(1).FirstIndex
+			oEnvironment.Item("Model") = Left(sInitModel,i)
+			'wscript.echo """"&oEnvironment.Item("Model")&""""
+		end if
+	  end if
+	  oRegEx.pattern = "Venue 11 Pro 713"
+	  if oRegEx.test(sInitModel) then
+		oLogging.CreateEntry "Model is a Venue 11 Pro 713x.  Cleaning up the model name...", LogTypeInfo
+		oRegEx.pattern = "713"
+		set oMatch = oRegEx.Execute(sInitModel)
+		'wscript.echo "oMatch Count is: " & oMatch.count
+		i = oMatch.item(0).FirstIndex
+		'wscript.echo "index of match is: " & i
+		oEnvironment.Item("Model") = Left(sInitModel,i+3)
+		'wscript.echo """"&oEnvironment.Item("Model")&""""
+	  end if
+
+	  'Check for DriverGroups.xml file, which will contain the supported model list:
+	  iRetVal = Failure
+	  iRetVal = oUtility.FindFile("DriverGroups.xml", sDGPath)
+	  if iRetVal <> Success then
+		oLogging.CreateEntry "DriverGroups file not found. ", LogTypeError
+		exit function
+	  end if 
+	  oLogging.CreateEntry "Path to DriverGroups.xml: " & sDGPath, LogTypeInfo
+	  
+	  'Parse the DriverGroups.xml file:
+	  oLogging.CreateEntry "Parsing DriverGroups.xml...", LogTypeInfo
+	  Set oXMLDoc = CreateObject("Msxml2.DOMDocument") 
+	  oXMLDoc.setProperty "SelectionLanguage", "XPath"
+	  oXMLDoc.load(sDGPath)
+	  Set Root = oXMLDoc.documentElement 
+	  Set NodeList = Root.getElementsByTagName("Name")
+	  oLogging.CreateEntry "NodeList Member Count is: " & NodeList.length, LogTypeInfo
+	  'oLogging.CreateEntry "NodeList.Length variant type is: " & TypeName(NodeList.Length), LogTypeInfo
+	  i = CInt(NodeList.length) - 1
+	  ReDim aModels(i) 'Resize aModels to hold all matching DriverGroup items.
+	  'oLogging.CreateEntry "List of Available Driver Groups:", LogTypeInfo
+	  i = 0
+	  For Each Elem In NodeList
+		if InStr(Elem.Text,"Models\") then
+			aModels(i) = Mid(Elem.Text,8)	'Add text after "Models\"
+			'oLogging.CreateEntry aModels(i), LogTypeInfo
+			i = i + 1
+		end if
+	  Next
+	  oLogging.CreateEntry "End Parsing DriverGroups.xml.", LogTypeInfo
+
+	  'Loop through the list of supported models to find a match:
+	  oLogging.CreateEntry "Checking discovered driver groups for match to: " & oenvironment.Item("Model"), LogTypeInfo
+	  For Each sItem in aModels
+		oLogging.CreateEntry "Checking Driver Group: " & sItem, LogTypeInfo
+		i = InStr(1, sItem, oEnvironment.Item("Model"), vbTextCompare)
+
+		'wscript.echo TypeName(i) 'i is a "Long" number type.
+		If i <> 0 Then
+			oLogging.CreateEntry "Matching Model found.", LogTypeInfo
+			
+			j = InStr(sItem,"\")
+			sOSFound = Left(sItem,j-1)
+			'wscript.echo "sOSFound = " & sOSFound 
+			if (InStr(1,sOSFound,oEnvironment.Item("TargetOS"),vbTextCompare) <> 0) then
+				oLogging.CreateEntry "Drivers matching the requested OS are available.  Exiting with success.", LogTypeInfo
+				oEnvironment.Item("SupportedModel") = "YES"
+				iRetVal = Success
+				Main = iRetVal
+				Exit Function
+			end if
+			if iMaxOS > CInt(Right(sOSFound,1)) then
+				iMaxOS = CInt(Right(sOSFound,1))
+				'wscript.echo "iMaxOS = " & iMaxOS
+				sMaxOS = sOSFound
+				bOldDrivers = true
+				'wscript.echo "sMaxOS = " & sMaxOS
+			end if
+		End If
+	  Next
+		
+	  If bOldDrivers Then 'Run if sMaxOS is defined... set a boolean when this is defined and test against that?
+		oLogging.CreateEntry "Model drivers were found for an OS older than the one selected...", LogTypeWarning
+		oEnvironment.Item("SupportedModel") = "YES"
+		oEnvironment.Item("TargetOS") = sMaxOS
+	  Else
+	    oLogging.CreateEntry "No matching drivers were found for this model.", LogTypeInfo
+	  End If
+	  
+	  oLogging.CreateEntry "End ZUVMCheckModel.", LogTypeInfo
+
+	  iRetVal = Success
+	  Main = iRetVal
+
+	End Function
+
+End Class
+
+</script>
+</job>
